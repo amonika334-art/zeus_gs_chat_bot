@@ -255,64 +255,111 @@ async def toggle_restricted_mode(update: Update, context: ContextTypes.DEFAULT_T
 
 @require_admin
 async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Відповісти на повідомлення з іншої теми"""
+    """Переслати повідомлення у вказану тему"""
     global message_count
     message_count += 1
     
     user_info = f"{update.message.from_user.username or update.message.from_user.first_name}"
     
-    if not context.args or len(context.args) < 2:
+    # Перевіряємо чи є відповідь на повідомлення
+    if not update.message.reply_to_message:
         return await update.message.reply_text(
-            "📝 **Формат:** `/r <topic_id> <текст_відповіді>`\n\n"
-            "**Приклад:** `/r 123 Привіт! Це відповідь з іншої теми.`\n\n"
-            "💡 **Використовуйте цю команду щоб відповісти на повідомлення з інших тем.**\n\n"
+            "📝 **Формат:** `/r <topic_id>`\n\n"
+            "💡 **Як використовувати:**\n"
+            "1. Відповідайте на повідомлення, яке хочете переслати\n"
+            "2. Напишіть `/r 123` (де 123 - ID теми)\n"
+            "3. Бот переслає повідомлення у вказану тему\n\n"
             "🇺🇦 **Працює українською мовою!**"
         , parse_mode='Markdown')
+    
+    # Перевіряємо аргументи
+    if not context.args:
+        return await update.message.reply_text("❌ Вкажіть ID теми! Формат: `/r <topic_id>`")
     
     try:
         topic_id = int(context.args[0])
     except ValueError:
         return await update.message.reply_text("❌ ID теми має бути числом!")
     
-    # Отримуємо текст відповіді (всі аргументи після topic_id)
-    reply_text = " ".join(context.args[1:])
-    
-    if not reply_text.strip():
-        return await update.message.reply_text("❌ Введіть текст для відповіді!")
-    
     try:
-        # Відправляємо повідомлення в вказану тему
+        # Отримуємо оригінальне повідомлення
+        original_message = update.message.reply_to_message
         chat_id = update.message.chat.id
         
-        # Формуємо повідомлення з інформацією про відправника
+        # Формуємо інформацію про відправника
         sender_name = update.message.from_user.first_name
         sender_username = update.message.from_user.username
         sender_info = f"@{sender_username}" if sender_username else sender_name
         
-        formatted_reply = f"💬 **Відповідь від {sender_info}:**\n\n{reply_text}"
+        # Пересилаємо повідомлення у вказану тему
+        if original_message.photo:
+            # Пересилаємо фото
+            photo_file = original_message.photo[-1]
+            await context.bot.send_photo(
+                chat_id=chat_id,
+                photo=photo_file.file_id,
+                caption=f"💬 **Переслано від {sender_info}**",
+                message_thread_id=topic_id,
+                parse_mode='Markdown'
+            )
+            logger.info(f"📷 Адмін {user_info} переслав фото у тему {topic_id}")
+        elif original_message.video:
+            # Пересилаємо відео
+            await context.bot.send_video(
+                chat_id=chat_id,
+                video=original_message.video.file_id,
+                caption=f"💬 **Переслано від {sender_info}**",
+                message_thread_id=topic_id,
+                parse_mode='Markdown'
+            )
+            logger.info(f"🎥 Адмін {user_info} переслав відео у тему {topic_id}")
+        elif original_message.document:
+            # Пересилаємо документ
+            await context.bot.send_document(
+                chat_id=chat_id,
+                document=original_message.document.file_id,
+                caption=f"💬 **Переслано від {sender_info}**",
+                message_thread_id=topic_id,
+                parse_mode='Markdown'
+            )
+            logger.info(f"📄 Адмін {user_info} переслав документ у тему {topic_id}")
+        elif original_message.voice:
+            # Пересилаємо голосове повідомлення
+            await context.bot.send_voice(
+                chat_id=chat_id,
+                voice=original_message.voice.file_id,
+                caption=f"💬 **Переслано від {sender_info}**",
+                message_thread_id=topic_id,
+                parse_mode='Markdown'
+            )
+            logger.info(f"🎤 Адмін {user_info} переслав голосове повідомлення у тему {topic_id}")
+        elif original_message.audio:
+            # Пересилаємо аудіо
+            await context.bot.send_audio(
+                chat_id=chat_id,
+                audio=original_message.audio.file_id,
+                caption=f"💬 **Переслано від {sender_info}**",
+                message_thread_id=topic_id,
+                parse_mode='Markdown'
+            )
+            logger.info(f"🎵 Адмін {user_info} переслав аудіо у тему {topic_id}")
+        else:
+            # Пересилаємо текст
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"💬 **Переслано від {sender_info}:**\n\n{original_message.text}",
+                message_thread_id=topic_id,
+                parse_mode='Markdown'
+            )
+            logger.info(f"✅ Адмін {user_info} переслав текст у тему {topic_id}")
         
-        # Відправляємо повідомлення в вказану тему
-        sent_message = await context.bot.send_message(
-            chat_id=chat_id,
-            text=formatted_reply,
-            message_thread_id=topic_id,
-            parse_mode='Markdown'
-        )
-        
-        logger.info(f"✅ Адмін {user_info} відправив відповідь у тему {topic_id}: {reply_text[:50]}...")
-        
-        # Підтверджуємо відправку
-        await update.message.reply_text(
-            f"✅ **Відповідь відправлено у тему {topic_id}!**\n\n"
-            f"📝 **Текст:** {reply_text[:100]}{'...' if len(reply_text) > 100 else ''}\n\n"
-            f"🇺🇦 **Команда працює українською!**"
-        , parse_mode='Markdown')
+        # Повідомлення переслано успішно
         
     except Exception as e:
         error_count += 1
-        logger.error(f"❌ Помилка при відправці відповіді у тему {topic_id}: {e}")
+        logger.error(f"❌ Помилка при пересиланні повідомлення у тему {topic_id}: {e}")
         await update.message.reply_text(
-            f"❌ **Помилка при відправці відповіді у тему {topic_id}:**\n{str(e)}"
+            f"❌ **Помилка при пересиланні у тему {topic_id}:**\n{str(e)}"
         )
 
 @require_admin
@@ -371,7 +418,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         await update.message.reply_text(
-            "🤖 **Бот запущений!**\n\n"
+            "�� **Бот запущений!**\n\n"
             "📋 **Доступні команди (тільки для адміністраторів):**\n"
             "• `/allow @username [topic_id]` - дозволити доступ користувачу\n"
             "• `/deny @username [topic_id]` - заборонити доступ користувачу\n"
@@ -381,10 +428,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• `/set_autodelete <секунди> [topic_id]` - налаштувати автоочищення\n"
             "• `/list` - показати поточні налаштування\n"
             "• `/topics` - як дізнатися ID тем\n"
-            "• `/r <topic_id> <текст>` - відповісти на повідомлення з іншої теми\n\n"
-            "ℹ️ **Принцип роботи:** якщо для теми є запис у списку доступів — писати можуть тільки користувачі з цього списку. "
-            "Порожній список = заборонено всім.\n\n"
+            "• `/r <topic_id>` - переслати повідомлення у вказану тему\n\n"
             "💡 **Команда `/r` вирішує проблему з пересиланням повідомлень між темами на iOS!**\n\n"
+            "📱 **Можливості команди `/r`:**\n"
+            "• **Пересилання повідомлень** - відповідайте на повідомлення та пишіть `/r 123`\n"
+            "• **Підтримує всі типи медіа** - фото, відео, документи, голосові, аудіо\n"
+            "• **Автоматично додає підпис** - показує хто переслав\n\n"
             "🇺🇦 **Бот працює українською мовою!**"
         , parse_mode='Markdown')
         logger.info(f"✅ Відповідь на /start відправлено успішно користувачу {user_info}")
