@@ -78,7 +78,7 @@ def require_admin(func):
     """Декоратор для проверки прав администратора"""
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not await _is_chat_admin(update, context):
-            await update.message.reply_text("⛔ У вас нет прав администратора для использования этой команды!")
+            await update.message.reply_text("⛔ У вас немає прав адміністратора для використання цієї команди!")
             return
         return await func(update, context)
     return wrapper
@@ -170,23 +170,23 @@ async def list_access(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @require_admin
 async def deny_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Заблокировать всех пользователей в ветке"""
+    """Заблокувати всіх користувачів у гілці"""
     topic_id = _get_topic_id_from_context(update, context.args)
     if not topic_id:
         return await update.message.reply_text("Не бачу ID гілки. Вкажи його або виконай команду прямо в потрібній гілці.")
     
-    # Устанавливаем пустой список - значит запрещено всем
+    # Встановлюємо порожній список - значить заборонено всім
     allowed_users_per_topic[topic_id] = []
     await update.message.reply_text(f"🚫 Всі користувачі заблоковані в гілці {topic_id}")
 
 @require_admin
 async def allow_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Разблокировать всех пользователей в ветке"""
+    """Розблокувати всіх користувачів у гілці"""
     topic_id = _get_topic_id_from_context(update, context.args)
     if not topic_id:
         return await update.message.reply_text("Не бачу ID гілки. Вкажи його або виконай команду прямо в потрібній гілці.")
     
-    # Удаляем запись о ветке - значит доступ открыт всем
+    # Видаляємо запис про гілку - значить доступ відкритий всім
     if topic_id in allowed_users_per_topic:
         del allowed_users_per_topic[topic_id]
         await update.message.reply_text(f"✅ Всі користувачі розблоковані в гілці {topic_id}")
@@ -195,41 +195,41 @@ async def allow_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @require_admin
 async def toggle_restricted_mode(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Включить/выключить режим ограниченного доступа для ветки"""
+    """Увімкнути/вимкнути режим обмеженого доступу для гілки"""
     topic_id = _get_topic_id_from_context(update, context.args)
     if not topic_id:
         return await update.message.reply_text("Не бачу ID гілки. Вкажи його або виконай команду прямо в потрібній гілці.")
     if topic_id in allowed_users_per_topic:
-        # Если режим включен - выключаем (удаляем ограничения)
+        # Якщо режим увімкнено - вимикаємо (видаляємо обмеження)
         del allowed_users_per_topic[topic_id]
         await update.message.reply_text(f"🔓 Режим обмеженого доступу вимкнено для гілки {topic_id}. Всі можуть писати.")
     else:
-        # Если режим выключен - включаем (блокируем всех)
+        # Якщо режим вимкнено - увімкнюємо (блокуємо всіх)
         allowed_users_per_topic[topic_id] = []
         await update.message.reply_text(f"🔒 Режим обмеженого доступу увімкнено для гілки {topic_id}. Тільки дозволені користувачі можуть писати.")
 
 @require_admin
 async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Ответить на сообщение из другой темы или переслать сообщение"""
+    """Відповісти на повідомлення з іншої теми або переслати повідомлення"""
     global message_count, error_count
     message_count += 1
     
     user_info = f"{update.message.from_user.username or update.message.from_user.first_name}"
     
-    # Проверяем, является ли это ответом на сообщение (для пересылки)
+            # Перевіряємо, чи є це відповіддю на повідомлення (для пересилання)
     if update.message.reply_to_message:
-        # Это пересылка сообщения
+        # Це пересилання повідомлення
         if not context.args or len(context.args) < 1:
             return await update.message.reply_text(
-                "📝 Формат для пересылки: /r <topic_id/алиас> [дополнительный_текст]\n\n"
-                "Пример: /r 1 (перешлет сообщение в тему с алиасом 1)\n"
-                "Пример: /r 832 Добавлю комментарий (перешлет с комментарием)"
+                "📝 Формат для пересилання: /r <topic_id/аліас> [додатковий_текст]\n\n"
+                "Приклад: /r 1 (перешле повідомлення в тему з аліасом 1)\n"
+                "Приклад: /r 832 Додам коментар (перешле з коментарем)"
             )
         
-        # Разрешаем алиас темы
+        # Дозволяємо аліас теми
         target_topic_id = _resolve_topic_id(context.args[0])
         if target_topic_id is None:
-            return await update.message.reply_text("❌ ID темы или алиас должен быть числом!")
+            return await update.message.reply_text("❌ ID теми або аліас має бути числом!")
         
         # Получаем дополнительный текст если есть
         additional_text = " ".join(context.args[1:]) if len(context.args) > 1 else ""
@@ -577,6 +577,48 @@ async def show_forwarded(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
 
 @require_admin
+async def show_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показати статистику бота"""
+    global message_count, error_count
+    message_count += 1
+    
+    user_info = f"{update.message.from_user.username or update.message.from_user.first_name}"
+    
+    try:
+        stats = get_stats()
+        
+        # Додаткова інформація
+        active_topics = len(allowed_users_per_topic)
+        auto_delete_topics = len(auto_delete_settings)
+        cleanup_topics = len(topic_cleanup_settings)
+        aliases_count = len(topic_aliases)
+        forwarded_count = len(forwarded_messages)
+        
+        stats_text = f"""📊 **Статистика бота**
+
+⏱️ **Час роботи:** {stats['uptime']}
+📨 **Оброблено повідомлень:** {stats['messages_processed']}
+❌ **Помилок:** {stats['errors']}
+🕐 **Останнє оновлення:** {stats['timestamp']}
+
+📋 **Налаштування:**
+• Активних тем з обмеженнями: {active_topics}
+• Тем з автовидаленням: {auto_delete_topics}
+• Тем з очищенням: {cleanup_topics}
+• Аліасів тем: {aliases_count}
+• Пересланих повідомлень: {forwarded_count}
+
+✅ **Бот працює нормально!**"""
+        
+        await update.message.reply_text(stats_text, parse_mode='Markdown')
+        logger.info(f"📊 Admin {user_info} requested bot stats")
+        
+    except Exception as e:
+        error_count += 1
+        logger.error(f"❌ Error showing stats: {e}")
+        await update.message.reply_text(f"❌ Помилка при отриманні статистики: {str(e)}")
+
+@require_admin
 async def list_topics(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показать все темы в чате"""
     global message_count
@@ -631,34 +673,35 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         await update.message.reply_text(
-            "🤖 Бот запущен!\n\n"
-            "📋 Доступные команды (только для администраторов):\n"
-            "• /allow @username [topic_id] - разрешить доступ пользователю\n"
-            "• /deny @username [topic_id] - запретить доступ пользователю\n"
-            "• /deny_all [topic_id] - заблокировать ВСЕХ пользователей\n"
-            "• /allow_all [topic_id] - разблокировать ВСЕХ пользователей\n"
-            "• /toggle_restricted [topic_id] - включить/выключить режим ограничений\n"
-            "• /set_autodelete <секунды> [topic_id] - настроить автоудаление\n"
-            "• /set_alias <номер> <topic_id> - установить алиас для темы\n"
-            "• /remove_alias <номер> - удалить алиас темы\n"
-            "• /aliases - показать все алиасы тем\n"
-            "• /set_cleanup <topic_id/алиас> <минуты> - настроить очистку темы\n"
-            "• /cleanup_now <topic_id/алиас> - немедленно очистить тему\n"
-            "• /clear_forwarded - очистить список пересланных сообщений\n"
-            "• /show_forwarded - показать статистику пересланных сообщений\n"
-            "• /list - показать текущие настройки\n"
-            "• /topics - как узнать ID тем\n"
-            "• /r <topic_id/алиас> <текст> - ответить на сообщение из другой темы\n"
-            "• /r <topic_id/алиас> (ответ на сообщение) - переслать сообщение в другую тему\n\n"
-            "ℹ️ Принцип работы: если для ветки есть запись в списке доступов — писать могут только пользователи из этого списка. "
-            "Пустой список = запрещено всем.\n\n"
-            "💡 Команда /r решает проблему с пересылкой сообщений между темами на iOS!"
+            "🤖 Бот запущено!\n\n"
+            "📋 Доступні команди (тільки для адміністраторів):\n"
+            "• /allow @username [topic_id] - дозволити доступ користувачу\n"
+            "• /deny @username [topic_id] - заборонити доступ користувачу\n"
+            "• /deny_all [topic_id] - заблокувати ВСІХ користувачів\n"
+            "• /allow_all [topic_id] - розблокувати ВСІХ користувачів\n"
+            "• /toggle_restricted [topic_id] - увімкнути/вимкнути режим обмежень\n"
+            "• /set_autodelete <секунди> [topic_id] - налаштувати автовидалення\n"
+            "• /set_alias <номер> <topic_id> - встановити аліас для теми\n"
+            "• /remove_alias <номер> - видалити аліас теми\n"
+            "• /aliases - показати всі аліаси тем\n"
+            "• /set_cleanup <topic_id/аліас> <хвилини> - налаштувати очищення теми\n"
+            "• /cleanup_now <topic_id/аліас> - негайно очистити тему\n"
+            "• /clear_forwarded - очистити список пересланих повідомлень\n"
+            "• /show_forwarded - показати статистику пересланих повідомлень\n"
+            "• /stats - показати статистику бота\n"
+            "• /list - показати поточні налаштування\n"
+            "• /topics - як дізнатися ID тем\n"
+            "• /r <topic_id/аліас> <текст> - відповісти на повідомлення з іншої теми\n"
+            "• /r <topic_id/аліас> (відповідь на повідомлення) - переслати повідомлення в іншу тему\n\n"
+            "ℹ️ Принцип роботи: якщо для гілки є запис у списку доступів — писати можуть тільки користувачі з цього списку. "
+            "Порожній список = заборонено всім.\n\n"
+            "💡 Команда /r вирішує проблему з пересиланням повідомлень між темами на iOS!"
         )
         logger.info(f"✅ Start response sent successfully to user {user_info}")
     except Exception as e:
         error_count += 1
         logger.error(f"❌ Error sending start response to user {user_info}: {e}")
-        await update.message.reply_text("❌ Произошла ошибка при запуске бота")
+        await update.message.reply_text("❌ Сталася помилка при запуску бота")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global message_count
@@ -729,17 +772,18 @@ application.add_handler(CommandHandler("set_cleanup", set_cleanup)) # Добав
 application.add_handler(CommandHandler("cleanup_now", cleanup_now)) # Добавляем обработчик для команды /cleanup_now
 application.add_handler(CommandHandler("clear_forwarded", clear_forwarded)) # Добавляем обработчик для команды /clear_forwarded
 application.add_handler(CommandHandler("show_forwarded", show_forwarded)) # Добавляем обработчик для команды /show_forwarded
+application.add_handler(CommandHandler("stats", show_stats)) # Добавляем обработчик для команды /stats
 application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
 
 async def health_check(request):
     """Health check endpoint for Render"""
     stats = get_stats()
-    status_text = f"""🤖 Bot Status: RUNNING
-⏱️ Uptime: {stats['uptime']}
-📊 Messages processed: {stats['messages_processed']}
-❌ Errors: {stats['errors']}
-🕐 Last update: {stats['timestamp']}
-✅ Bot is healthy and running!"""
+    status_text = f"""🤖 Статус бота: ПРАЦЮЄ
+⏱️ Час роботи: {stats['uptime']}
+📊 Оброблено повідомлень: {stats['messages_processed']}
+❌ Помилок: {stats['errors']}
+🕐 Останнє оновлення: {stats['timestamp']}
+✅ Бот працює нормально!"""
     
     return web.Response(text=status_text, content_type="text/plain")
 
