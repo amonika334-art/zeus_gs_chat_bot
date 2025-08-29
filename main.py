@@ -84,7 +84,27 @@ def require_admin(func):
     return wrapper
 
 def _norm_username(u: str | None) -> str:
-    return (u or "").lstrip("@").lower().strip()
+    """Нормализует username, номер телефона или user_id"""
+    if not u:
+        return ""
+    
+    u = u.strip()
+    
+    # Если это номер телефона (начинается с +)
+    if u.startswith("+"):
+        # Убираем все нецифровые символы кроме +
+        phone = "+" + "".join(filter(str.isdigit, u[1:]))
+        return phone
+    
+    # Если это число (user_id)
+    try:
+        user_id = int(u)
+        return str(user_id)
+    except ValueError:
+        pass
+    
+    # Если это username (убираем @ и приводим к нижнему регистру)
+    return u.lstrip("@").lower()
 
 def _resolve_topic_id(topic_input: str | int) -> int | None:
     """Разрешает алиас темы в реальный ID темы"""
@@ -101,38 +121,86 @@ def _resolve_topic_id(topic_input: str | int) -> int | None:
 @require_admin
 async def allow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        return await update.message.reply_text("Формат: /allow @username [topic_id]. Можна без topic_id, якщо вводиш у гілці.")
-    username = _norm_username(context.args[0])
-    if not username:
-        return await update.message.reply_text("⛔ Вкажи коректний @username.")
+        return await update.message.reply_text(
+            "Формат: /allow <@username/номер_телефона/user_id> [topic_id]\n\n"
+            "Приклади:\n"
+            "• /allow @john_doe 123\n"
+            "• /allow +380123456789 123\n"
+            "• /allow 123456789 123\n\n"
+            "Можна без topic_id, якщо вводиш у гілці."
+        )
+    
+    user_identifier = _norm_username(context.args[0])
+    if not user_identifier:
+        return await update.message.reply_text("⛔ Вкажи коректний @username, номер телефону або user_id.")
+    
     topic_id = _get_topic_id_from_context(update, context.args[1:])
     if not topic_id:
         return await update.message.reply_text("Не бачу ID гілки. Вкажи його або виконай команду прямо в потрібній гілці.")
 
     users = allowed_users_per_topic.setdefault(topic_id, [])
-    if username not in users:
-        users.append(username)
-        await update.message.reply_text(f"✅ @{username} молодець, ти дзе бест, тільки ніякого контента 18+ {topic_id}")
+    if user_identifier not in users:
+        users.append(user_identifier)
+        # Определяем тип идентификатора для красивого отображения
+        if user_identifier.startswith("+"):
+            display_name = f"📱 {user_identifier}"
+        elif user_identifier.isdigit():
+            display_name = f"🆔 {user_identifier}"
+        else:
+            display_name = f"@{user_identifier}"
+        
+        await update.message.reply_text(f"✅ {display_name} молодець, ти дзе бест, тільки ніякого контента 18+ {topic_id}")
     else:
-        await update.message.reply_text(f"ℹ️ @{username} ай да молодець, як у такій бусі мона доступ забрати {topic_id}")
+        if user_identifier.startswith("+"):
+            display_name = f"📱 {user_identifier}"
+        elif user_identifier.isdigit():
+            display_name = f"🆔 {user_identifier}"
+        else:
+            display_name = f"@{user_identifier}"
+        
+        await update.message.reply_text(f"ℹ️ {display_name} ай да молодець, як у такій бусі мона доступ забрати {topic_id}")
 
 @require_admin
 async def deny(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        return await update.message.reply_text("Формат: /deny @username [topic_id]. Можна без topic_id, якщо вводиш у гілці.")
-    username = _norm_username(context.args[0])
-    if not username:
-        return await update.message.reply_text("⛔ Вкажи коректний @username.")
+        return await update.message.reply_text(
+            "Формат: /deny <@username/номер_телефона/user_id> [topic_id]\n\n"
+            "Приклади:\n"
+            "• /deny @john_doe 123\n"
+            "• /deny +380123456789 123\n"
+            "• /deny 123456789 123\n\n"
+            "Можна без topic_id, якщо вводиш у гілці."
+        )
+    
+    user_identifier = _norm_username(context.args[0])
+    if not user_identifier:
+        return await update.message.reply_text("⛔ Вкажи коректний @username, номер телефону або user_id.")
+    
     topic_id = _get_topic_id_from_context(update, context.args[1:])
     if not topic_id:
         return await update.message.reply_text("Не бачу ID гілки. Вкажи його або виконай команду прямо в потрібній гілці.")
 
     users = allowed_users_per_topic.setdefault(topic_id, [])
-    if username in users:
-        users.remove(username)
-        await update.message.reply_text(f"🚫 @{username} нє нє, тобі сюди не мона писати {topic_id}")
+    if user_identifier in users:
+        users.remove(user_identifier)
+        # Определяем тип идентификатора для красивого отображения
+        if user_identifier.startswith("+"):
+            display_name = f"📱 {user_identifier}"
+        elif user_identifier.isdigit():
+            display_name = f"🆔 {user_identifier}"
+        else:
+            display_name = f"@{user_identifier}"
+        
+        await update.message.reply_text(f"🚫 {display_name} нє нє, тобі сюди не мона писати {topic_id}")
     else:
-        await update.message.reply_text(f"ℹ️ @{username} айяй, не мона, значит не мона {topic_id}")
+        if user_identifier.startswith("+"):
+            display_name = f"📱 {user_identifier}"
+        elif user_identifier.isdigit():
+            display_name = f"🆔 {user_identifier}"
+        else:
+            display_name = f"@{user_identifier}"
+        
+        await update.message.reply_text(f"ℹ️ {display_name} айяй, не мона, значит не мона {topic_id}")
 
 @require_admin
 async def set_autodelete(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -164,7 +232,19 @@ async def list_access(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if users is None:
             users_str = "(не контролюється)"
         else:
-            users_str = ", ".join(f"@{u}" for u in users) if users else "— (заборонено всім)"
+            if users:
+                # Красиво отображаем разные типы идентификаторов
+                formatted_users = []
+                for u in users:
+                    if u.startswith("+"):
+                        formatted_users.append(f"📱 {u}")
+                    elif u.isdigit():
+                        formatted_users.append(f"🆔 {u}")
+                    else:
+                        formatted_users.append(f"@{u}")
+                users_str = ", ".join(formatted_users)
+            else:
+                users_str = "— (заборонено всім)"
         lines.append(f"— Гілка {tid}: доступ: {users_str}; автоочищення: {clean}s")
     await update.message.reply_text("\n".join(lines))
 
@@ -675,8 +755,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "🤖 Бот запущено!\n\n"
             "📋 Доступні команди (тільки для адміністраторів):\n"
-            "• /allow @username [topic_id] - дозволити доступ користувачу\n"
-            "• /deny @username [topic_id] - заборонити доступ користувачу\n"
+            "• /allow <@username/номер_телефона/user_id> [topic_id] - дозволити доступ користувачу\n"
+            "• /deny <@username/номер_телефона/user_id> [topic_id] - заборонити доступ користувачу\n"
             "• /deny_all [topic_id] - заблокувати ВСІХ користувачів\n"
             "• /allow_all [topic_id] - розблокувати ВСІХ користувачів\n"
             "• /toggle_restricted [topic_id] - увімкнути/вимкнути режим обмежень\n"
@@ -713,31 +793,41 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
         
     topic_id = update.message.message_thread_id
-    sender_username = _norm_username(update.message.from_user.username)
     
-    logger.info(f"📨 Processing message from @{sender_username} in topic {topic_id}")
+    # Получаем все возможные идентификаторы пользователя
+    sender_username = _norm_username(update.message.from_user.username)
+    sender_phone = _norm_username(update.message.from_user.phone_number) if update.message.from_user.phone_number else None
+    sender_id = str(update.message.from_user.id)
+    
+    # Создаем список всех идентификаторов для проверки
+    user_identifiers = [sender_username, sender_phone, sender_id]
+    user_identifiers = [uid for uid in user_identifiers if uid]  # Убираем пустые значения
+    
+    logger.info(f"📨 Processing message from user {sender_id} (@{sender_username}) in topic {topic_id}")
 
     # Администраторы всегда могут писать
     if await _is_chat_admin(update, context):
-        logger.info(f"👑 Admin @{sender_username} message allowed in topic {topic_id}")
+        logger.info(f"👑 Admin {sender_id} message allowed in topic {topic_id}")
         pass
     else:
         # Если для ветки есть ограничения доступа
         if topic_id in allowed_users_per_topic:
-            # Проверяем, есть ли пользователь в списке разрешенных
-            if sender_username not in allowed_users_per_topic[topic_id]:
+            # Проверяем, есть ли пользователь в списке разрешенных по любому из идентификаторов
+            has_access = any(uid in allowed_users_per_topic[topic_id] for uid in user_identifiers)
+            
+            if not has_access:
                 try:
                     await update.message.delete()
-                    logger.info(f"🚫 Deleted message from @{sender_username} in topic {topic_id} (no access)")
+                    logger.info(f"🚫 Deleted message from {sender_id} in topic {topic_id} (no access)")
                 except Exception as e:
                     error_count += 1
-                    logger.error(f"❌ Error deleting message from @{sender_username} in topic {topic_id}: {e}")
+                    logger.error(f"❌ Error deleting message from {sender_id} in topic {topic_id}: {e}")
                 return
             else:
-                logger.info(f"✅ User @{sender_username} message allowed in topic {topic_id}")
+                logger.info(f"✅ User {sender_id} message allowed in topic {topic_id}")
         else:
             # Если для ветки нет ограничений - все могут писать
-            logger.info(f"✅ User @{sender_username} message allowed in topic {topic_id} (no restrictions)")
+            logger.info(f"✅ User {sender_id} message allowed in topic {topic_id} (no restrictions)")
             pass
 
     # Применяем автоудаление если настроено
